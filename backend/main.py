@@ -102,7 +102,7 @@ async def checkMonitor(request:Request,monitor_id,conn=Depends(get_db)):
     #first get the client for httpx
     client=request.app.state.http_client
     #get url from db
-    monitor_url=getMonitorByID(monitor_id,conn)
+    monitor_url=await getMonitorByID(monitor_id,conn)
     
     #create monitor event
     monitor_event=MonitorEvent(
@@ -120,9 +120,7 @@ async def checkMonitor(request:Request,monitor_id,conn=Depends(get_db)):
         end=time.perf_counter()
 
         #record response time 
-        #round upto 2 decimal places, and
-        #scale by 100 
-        monitor_event.response_time_ms=round((end-start)*1000,2)*10
+        monitor_event.response_time_ms=getResponseTimeInInteger(start,end)
 
         monitor_event.status_code=r.status_code
 
@@ -177,7 +175,7 @@ async def getMonitorByID(monitor_id:int,conn:psycopg.Connection):
         "FROM monitors " \
         "WHERE id=%s ",(monitor_id,))
 
-    row=cursor.fetchone()
+    row=await cursor.fetchone()
 
     if row is None:
         return None
@@ -185,3 +183,11 @@ async def getMonitorByID(monitor_id:int,conn:psycopg.Connection):
     monitor_url=row[0]
 
     return monitor_url
+
+def getResponseTimeInInteger(start,end):
+    #first round to 2 decimal places
+    response_time=round((end-start)*1000,2)
+    #now scale to 100, to remove decimals and store as integer in db
+    response_time_integer=response_time*100
+
+    return response_time_integer
