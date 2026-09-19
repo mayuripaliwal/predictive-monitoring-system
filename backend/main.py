@@ -8,6 +8,9 @@ import os
 from dotenv import load_dotenv
 from psycopg_pool import AsyncConnectionPool
 from datetime import datetime,timezone
+from arq import create_pool
+from arq.connections import RedisSettings
+
 load_dotenv()
 
 DATABASE_URL=os.getenv("DATABASE_URL")
@@ -57,6 +60,8 @@ class MonitorEvent(BaseModel):
     response_time_ms:int | None
     checked_at:AwareDatetime
 
+REDIS_URL=os.getenv("REDIS_URL")
+
 @asynccontextmanager
 async def lifespan(app:FastAPI):
     app.state.http_client=httpx.AsyncClient()
@@ -97,65 +102,18 @@ async def addMonitor(monitor:Monitor,conn=Depends(get_db)):
         "message":"Monitor created successfully."
     }
 
-# this fn checks the website status and stores it
-async def checkMonitor(request:Request,monitor_id,conn=Depends(get_db)):
-    #first get the client for httpx
-    client=request.app.state.http_client
-    #get url from db
-    monitor_url=await getMonitorByID(monitor_id,conn)
-    
-    #create monitor event
-    monitor_event=MonitorEvent(
-        monitor_id=monitor_id,
-        status="down",
-        status_code=None,
-        response_time_ms=None,
-        checked_at=datetime.now(timezone.utc)
-    )    
+# api for testing purposes (for get_monitors cron job in worker.py)
+@app.post('/test-worker')
+async def test_worker():
+    redis=await create_pool(settings_=RedisSettings.from_dsn(REDIS_URL))
 
-    try:
-        start=time.perf_counter()
-        r=await client.get(monitor_url)
+    await redis.enqueue_job("get_monitors")
 
-        end=time.perf_counter()
+    await redis.close()
 
-        #record response time 
-        monitor_event.response_time_ms=getResponseTimeInInteger(start,end)
-
-        monitor_event.status_code=r.status_code
-
-        #website up/down based on status code
-        if 200<=monitor_event.status_code<500:
-            monitor_event.status="up"
-        else:
-            monitor_event.status="down"
-
-        await saveMonitorEvent(monitor_event,conn)
-
-        return monitor_event
-    
-    except httpx.TimeoutException as e:
-
-        await saveMonitorEvent(monitor_event,conn)
-        return monitor_event
-    
-    except httpx.RequestError as e:
-
-        await saveMonitorEvent(monitor_event,conn)
-        return monitor_event
-
-# this fn saves a monitor event in db
-async def saveMonitorEvent(monitor_event:MonitorEvent,conn:psycopg.Connection):
-    async with conn.cursor() as cursor:
-        await cursor.execute("INSERT INTO monitor_events ( " \
-        "monitor_id, status, status_code, response_time_ms, checked_at) " \
-        "VALUES(%s,%s,%s,%s,%s)",(
-            monitor_event.monitor_id,
-            monitor_event.status,
-            monitor_event.status_code,
-            monitor_event.response_time_ms,
-            monitor_event.checked_at,))
-
+    return {
+        "message":"Job added to queue"
+    }
 
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
@@ -169,6 +127,7 @@ async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
         await conn.rollback()
         raise
 
+#this fn gets the monitor url by id
 async def getMonitorByID(monitor_id:int,conn:psycopg.Connection):
     async with conn.cursor() as cursor:
         await cursor.execute("SELECT url " \
@@ -183,11 +142,3 @@ async def getMonitorByID(monitor_id:int,conn:psycopg.Connection):
     monitor_url=row[0]
 
     return monitor_url
-
-def getResponseTimeInInteger(start,end):
-    #first round to 2 decimal places
-    response_time=round((end-start)*1000,2)
-    #now scale to 100, to remove decimals and store as integer in db
-    response_time_integer=response_time*100
-
-    return response_time_integer
