@@ -30,12 +30,61 @@ async def startup(ctx):
 async def shutdown(ctx):
     await pool.close()
 
+async def check_monitor(ctx,monitor):
+    monitor_url=monitor[1]
+
+    start=time.perf_counter()
+
+    monitor_event=MonitorEvent(
+        monitor_id=monitor[0],
+        status="down",
+        status_code=None,
+        response_time_ms=None,
+        checked_at=datetime.now(timezone.utc)
+        )
+
+    try:
+        #TODO: work on creating a persistent client instead of opening a new one every time
+        async with httpx.AsyncClient() as client:
+            response=await client.get(monitor_url,timeout=5)
+
+            monitor_event.status_code=response.status_code
+
+            if 200<=response.status_code<500:
+                monitor_event.status="up"
+            else:
+                monitor_event.status="down"
+
+            monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*100
+
+            return monitor_event
+    
+    except httpx.RequestError:
+        monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*100
+
+        return monitor_event
+
+async def save_monitor_event(ctx,monitor_event:MonitorEvent):
+    async with pool.connection() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute("INSERT INTO monitor_events" \
+            " (monitor_id,status,status_code,response_time_ms,checked_at) " \
+            "  VALUES (%s,%s,%s,%s,%s)",
+            (monitor_event.monitor_id,
+             monitor_event.status,
+             monitor_event.status_code,
+             monitor_event.response_time_ms,
+             monitor_event.checked_at))
+
+            await conn.commit()
+    
+
 # this fn job is to get all monitors that need to be checked 
 async def get_monitors(ctx):
     async with pool.connection() as conn:
         async with conn.cursor() as cursor:
             #TODO: update the query to only fetch monitors whose checked_at<=now() -5 minutes
-            await cursor.execute("SELECT name, url " \
+            await cursor.execute("SELECT id, url " \
             "FROM monitors")
 
             monitors=await cursor.fetchall()
@@ -43,9 +92,10 @@ async def get_monitors(ctx):
     if not monitors:
         return 
 
+    #TODO: try to do this concurrently to improve performance later
     for monitor in monitors:
-        #TODO: write a fn to check each monitor
-        print(monitor)
+        monitor_event=await check_monitor(ctx,monitor)
+        await save_monitor_event(ctx,monitor_event)
 
 class WorkerSettings:
     on_startup=startup
