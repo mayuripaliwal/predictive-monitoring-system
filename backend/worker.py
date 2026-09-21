@@ -79,7 +79,7 @@ async def save_monitor_event(ctx,monitor_event:MonitorEvent):
             await conn.commit()
     
 
-# this fn job is to get all monitors that need to be checked 
+# this fn job is to get all monitors that need to be checked and check them
 async def get_monitors(ctx):
     async with pool.connection() as conn:
         async with conn.cursor() as cursor:
@@ -92,10 +92,20 @@ async def get_monitors(ctx):
     if not monitors:
         return 
 
-    #TODO: try to do this concurrently to improve performance later
+    tasks_check_monitor=[]
+    tasks_save_monitor_event=[]
+
     for monitor in monitors:
-        monitor_event=await check_monitor(ctx,monitor)
-        await save_monitor_event(ctx,monitor_event)
+        task=asyncio.create_task(check_monitor(ctx,monitor))
+        tasks_check_monitor.append(task)
+
+    check_results=await asyncio.gather(*tasks_check_monitor)
+
+    for monitor_event in check_results:
+        task=asyncio.create_task(save_monitor_event(ctx,monitor_event))
+        tasks_save_monitor_event.append(task)
+
+    save_results=await asyncio.gather(*tasks_save_monitor_event)
 
 class WorkerSettings:
     on_startup=startup

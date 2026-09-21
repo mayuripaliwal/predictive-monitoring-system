@@ -102,19 +102,6 @@ async def addMonitor(monitor:Monitor,conn=Depends(get_db)):
         "message":"Monitor created successfully."
     }
 
-# api for testing purposes (for get_monitors cron job in worker.py)
-@app.post('/test-worker')
-async def test_worker():
-    redis=await create_pool(settings_=RedisSettings.from_dsn(REDIS_URL))
-
-    await redis.enqueue_job("get_monitors")
-
-    await redis.close()
-
-    return {
-        "message":"Job added to queue"
-    }
-
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
 async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
@@ -126,19 +113,3 @@ async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
     except psycopg.errors.UniqueViolation:
         await conn.rollback()
         raise
-
-#this fn gets the monitor url by id
-async def getMonitorByID(monitor_id:int,conn:psycopg.Connection):
-    async with conn.cursor() as cursor:
-        await cursor.execute("SELECT url " \
-        "FROM monitors " \
-        "WHERE id=%s ",(monitor_id,))
-
-    row=await cursor.fetchone()
-
-    if row is None:
-        return None
-
-    monitor_url=row[0]
-
-    return monitor_url

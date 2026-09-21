@@ -36,6 +36,7 @@ def test_home(client):
         "message":"Backend is working"
     }
 
+# this test checks if a monitor is created successfully
 def test_create_monitor(client):
     response=client.post('/monitors',json={
         "name":"demo",
@@ -44,6 +45,7 @@ def test_create_monitor(client):
 
     assert response.status_code==200
 
+#this test asserts that duplicate monitor creation  (same url) are not allowed
 def test_create_existing_monitor(client):
     response=client.post('/monitors',json={
         "name":"demo",
