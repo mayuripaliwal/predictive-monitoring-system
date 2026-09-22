@@ -10,6 +10,7 @@ from psycopg_pool import AsyncConnectionPool
 from datetime import datetime,timezone
 from arq import create_pool
 from arq.connections import RedisSettings
+from fastapi.middleware.cors import CORSMiddleware;
 
 load_dotenv()
 
@@ -73,6 +74,16 @@ async def lifespan(app:FastAPI):
     await app.state.http_client.aclose()
 
 app=FastAPI(lifespan=lifespan)
+
+FRONTEND_URL=os.getenv("FRONTEND_URL")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["GET","POST","OPTIONS"],
+    allow_headers=["Content-Type"]
+)
 
 # dependency to lease db connections safely
 async def get_db():
