@@ -64,6 +64,7 @@ REDIS_URL=os.getenv("REDIS_URL")
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
+    #create a persistent httpx async client in app 
     app.state.http_client=httpx.AsyncClient()
     await pool.open()
     await create_tables()
