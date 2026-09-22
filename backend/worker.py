@@ -12,9 +12,6 @@ from psycopg_pool import AsyncConnectionPool
 import sys
 import asyncio
 
-if sys.platform=="win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 #create db pool connection
 pool=AsyncConnectionPool(
     conninfo=os.getenv("DATABASE_URL"),
