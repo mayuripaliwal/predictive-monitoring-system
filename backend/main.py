@@ -114,6 +114,18 @@ async def addMonitor(monitor:Monitor,conn=Depends(get_db)):
         "message":"Monitor created successfully."
     }
 
+#this api fetches all the monitors and their status from db
+@app.get('/monitors')
+async def getMonitors(conn=Depends(get_db)):
+    monitors=await getStatusOfMonitors(conn)
+
+    if monitors is None:
+        return {
+            "You have not created any monitors yet."
+        }
+
+    return monitors    
+
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
 async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
@@ -125,3 +137,30 @@ async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
     except psycopg.errors.UniqueViolation:
         await conn.rollback()
         raise
+async def getStatusOfMonitors(conn:psycopg.Connection):
+    async with conn.cursor() as cursor:
+        await cursor.execute("SELECT DISTINCT ON (monitors.id) "\
+            "monitors.name,monitors.url ,"\
+            "monitor_events.status, monitor_events.checked_at "\
+            "FROM monitors "\
+            "LEFT JOIN monitor_events "\
+            "ON monitors.id=monitor_events.monitor_id "\
+            "ORDER BY monitors.id ASC, checked_at DESC ")
+
+        rows=await cursor.fetchall()
+
+        if not rows:
+            return None
+
+        results=[]
+
+        for row in rows:
+            results.append({
+                "name":row[0],
+                "url":row[1],
+                "status":row[2],
+                "checked_at":row[3]
+                })
+
+        return results
+                
