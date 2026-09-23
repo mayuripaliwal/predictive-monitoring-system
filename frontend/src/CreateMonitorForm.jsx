@@ -51,8 +51,8 @@ export default function CreateMonitorForm() {
         <div className="space-y-12 mt-10">
 
           <div>
-            <h2 className="text-base/7 font-semibold text-gray-900">Create a monitor</h2>
-            <p className="mt-1 text-sm/6 text-gray-600">Once created, the URL will be monitored every 5 minutes.</p>
+            <h2 className="text-center text-base/7 font-semibold text-gray-900">Create a monitor</h2>
+            <p className="text-center mt-1 text-sm/6 text-gray-600">Once created, the URL will be monitored every 5 minutes.</p>
 
             <div className="mx-auto max-w-xl mt-10 gap-x-6 gap-y-8">
               <div>
@@ -111,7 +111,7 @@ export default function CreateMonitorForm() {
     }
     {/*Success message display */}
     {created && displayMessage && (<div>
-    <p className="mt-10 text-2xl text-gray-900">{displayMessage}</p>
+    <p className="mt-10 text-center text-2xl text-gray-900">{displayMessage}</p>
     </div>)
     }
     </>
