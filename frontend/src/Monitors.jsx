@@ -87,7 +87,7 @@ export default function Monitors(){
             });
             const result=await response.json();
             if (response.status===200){
-                setMonitors(result);
+                setMonitors(result.data);
                 
             }
             else{
@@ -118,6 +118,9 @@ export default function Monitors(){
                 <MonitorsTable monitors={monitors}/>
             )
         }
+        {!loading && monitors.length===0 && (
+          <p className="mt-4 text-gray-900">No monitors to display.</p>
+        )}
         </>
     )
 }

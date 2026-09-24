@@ -127,7 +127,10 @@ async def getMonitors(conn=Depends(get_db)):
             "data":[]
         }
 
-    return monitors    
+    return {
+        "success":True,
+        "data":monitors
+    }  
 
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
@@ -165,7 +168,7 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
                 "url":row[1],
                 "status":row[2],
                 "status_code":row[3],
-                "response_time_ms":row[4]/100,
+                "response_time_ms":row[4] if row[4] is None else row[4]/100,
                 "checked_at":row[5]
                 })
 
