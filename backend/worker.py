@@ -23,7 +23,9 @@ pool=AsyncConnectionPool(
 
 async def startup(ctx):
     #create a app level persistent httpx async client
-    ctx["http_client"]=httpx.AsyncClient()
+    ctx["http_client"]=httpx.AsyncClient(headers={
+        "User-Agent":"PredictiveMonitoringSystem/1.0"
+    })
     await pool.open()
 
 async def shutdown(ctx):
@@ -36,8 +38,6 @@ async def shutdown(ctx):
 async def check_monitor(ctx,monitor) -> MonitorEvent:
     monitor_url=monitor[1]
 
-    start=time.perf_counter()
-
     monitor_event=MonitorEvent(
         monitor_id=monitor[0],
         status="down",
@@ -46,9 +46,11 @@ async def check_monitor(ctx,monitor) -> MonitorEvent:
         checked_at=datetime.now(timezone.utc)
         )
 
+    start=time.perf_counter()
+
     try:
         client=ctx["http_client"]
-        response=await client.get(monitor_url,timeout=5)
+        response=await client.get(monitor_url,timeout=5,follow_redirects=True)
 
         monitor_event.status_code=response.status_code
 
@@ -114,10 +116,6 @@ async def check_monitors(ctx):
 
     await asyncio.gather(*tasks_save_monitor_event)
 
-    end=time.perf_counter()
-
-    print(f"Took time: {end-start} seconds")
-
 class WorkerSettings:
     on_startup=startup
     on_shutdown=shutdown
@@ -125,7 +123,8 @@ class WorkerSettings:
     #cron job to run check_monitors every 5 minutes
     cron_jobs=[cron(
         check_monitors,
-        minute={0,5,10,15,20,25,30,35,40,45,50,55})]
+        minute={0,5,10,15,20,25,30,35,40,45,50,55}
+        )]
     redis_settings=RedisSettings.from_dsn(REDIS_URL)
-    #poll delay is default 0.5 seconds in ARQ, here I set it to 10 seconds to reduce commands usage on Redis Free tier
-    poll_delay=10
+    #poll delay is default 0.5 seconds in ARQ
+    poll_delay=0.5

@@ -144,7 +144,9 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
     async with conn.cursor() as cursor:
         await cursor.execute("SELECT DISTINCT ON (monitors.id) "\
             "monitors.name,monitors.url ,"\
-            "monitor_events.status, monitor_events.checked_at "\
+            "monitor_events.status, monitor_events.status_code, " \
+            "monitor_events.response_time_ms, " \
+            "monitor_events.checked_at "\
             "FROM monitors "\
             "LEFT JOIN monitor_events "\
             "ON monitors.id=monitor_events.monitor_id "\
@@ -162,7 +164,9 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
                 "name":row[0],
                 "url":row[1],
                 "status":row[2],
-                "checked_at":row[3]
+                "status_code":row[3],
+                "response_time_ms":row[4]/100,
+                "checked_at":row[5]
                 })
 
         return results

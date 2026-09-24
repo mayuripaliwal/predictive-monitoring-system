@@ -20,6 +20,12 @@ function MonitorsTable({monitors}) {
                     Status
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
+                    Status Code
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
+                    Response Time (ms)
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
                     Last Checked
                   </th>
                 </tr>
@@ -32,7 +38,10 @@ function MonitorsTable({monitors}) {
                     </td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.url}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status==null?"Pending":monitor.status=="up"?"Up":"Down"}</td>
+                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status_code==null?"None":monitor.status_code}</td>
+                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.response_time_ms==null?"None":monitor.response_time_ms}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{formatDateTime(monitor.checked_at)}</td>
+                    
                   </tr>
                 ))}
               </tbody>
@@ -60,6 +69,7 @@ function formatDateTime(timestamp){
     const date=new Date(timestamp);
     return new Intl.DateTimeFormat(undefined,options).format(date);
 }
+
 export default function Monitors(){
     const [monitors,setMonitors]=useState([]);
     const [errorMessage, setErrorMessage]=useState("");
