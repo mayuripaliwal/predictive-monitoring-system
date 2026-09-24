@@ -114,15 +114,17 @@ async def addMonitor(monitor:Monitor,conn=Depends(get_db)):
         "message":"Monitor created successfully."
     }
 
-#TODO: add a pytest for this api
 #this api fetches all the monitors and their status from db
+#if no records exist, then return []
 @app.get('/monitors')
 async def getMonitors(conn=Depends(get_db)):
     monitors=await getStatusOfMonitors(conn)
 
     if monitors is None:
         return {
-            "You have not created any monitors yet."
+            "success":True,
+            "message":"You have not created any monitors yet.",
+            "data":[]
         }
 
     return monitors    

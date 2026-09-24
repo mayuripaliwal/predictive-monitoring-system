@@ -60,3 +60,12 @@ def test_create_existing_monitor(client):
     })
 
     assert response.status_code==409
+
+def test_get_all_monitors(client):
+    response=client.get('/monitors')
+
+    assert response.status_code==200
+
+    assert "data" in response.json()
+
+    assert response.json()["success"]==True
