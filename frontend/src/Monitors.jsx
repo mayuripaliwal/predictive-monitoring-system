@@ -108,17 +108,17 @@ export default function Monitors(){
     return (
         <>
         {loading && (
-            <p className="text-gray-900">Loading monitors...</p>
+            <p className="mt-4 text-gray-900">Loading monitors...</p>
         )}
         {errorMessage && (
-            <p className="text-red-600">{errorMessage}</p>
+            <p className="mt-4 text-red-600">{errorMessage}</p>
         )}
         {monitors.length>0 && 
             (
                 <MonitorsTable monitors={monitors}/>
             )
         }
-        {!loading && monitors.length===0 && (
+        {!errorMessage && !loading && monitors.length===0 && (
           <p className="mt-4 text-gray-900">No monitors to display.</p>
         )}
         </>

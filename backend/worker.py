@@ -120,10 +120,10 @@ class WorkerSettings:
     on_startup=startup
     on_shutdown=shutdown
     functions=[check_monitors]
-    #cron job to run check_monitors every 5 minutes
+    #cron job to run check_monitors every 1 minute
     cron_jobs=[cron(
         check_monitors,
-        minute={0,5,10,15,20,25,30,35,40,45,50,55}
+        minute=None
         )]
     redis_settings=RedisSettings.from_dsn(REDIS_URL)
     #poll delay is default 0.5 seconds in ARQ

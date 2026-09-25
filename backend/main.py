@@ -173,4 +173,38 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
                 })
 
         return results
-                
+
+async def getMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
+    async with conn.cursor() as cursor:
+        await cursor.execute("SELECT COUNT(*) as total_checks,"
+            "COUNT(*) FILTER (WHERE status='up') as successful_checks, " \
+            "SUM(response_time_ms) FILTER (WHERE status='up) as successful_latency_sum_ms "\
+            "FROM monitor_events"\
+            "WHERE monitor_id=%s"\
+            "AND checked_at>=NOW()-INTERVAL '24 hours'",(monitor_id,))
+
+        row=await cursor.fetchone()
+
+    #find uptime percentage
+
+    #monitor has not been checked in the past 24 hours
+    if row is None:
+        return None
+
+    total_count=row[0]
+    up_count=row[1]
+    successful_latency_sum_ms=row[2]/100
+
+    average_latency_ms=successful_latency_sum_ms/up_count
+
+    uptime=up_count/total_count
+
+    uptime_percentage=uptime*100
+
+    error_rate=((total_count-up_count)/total_count)*100
+
+    return {
+        "uptime_percentage":uptime_percentage,
+        "average_latency_ms":average_latency_ms,
+        "error_rate":error_rate
+    }
