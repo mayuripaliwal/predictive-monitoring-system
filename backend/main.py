@@ -132,6 +132,23 @@ async def getMonitors(conn=Depends(get_db)):
         "data":monitors
     }  
 
+#TODO: add test for this
+@app.get('/monitors/{monitor_id}')
+async def getMonitorMetrics(monitor_id:int,conn=Depends(get_db)):
+    metrics=await fetchMonitorMetrics(monitor_id,conn)
+
+    if metrics is None:
+        return {
+            "success":True,
+            "message":"No metrics to display.",
+            "data":[]
+        }
+
+    return {
+        "success":True,
+        "data":metrics
+    }
+
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
 async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
@@ -145,8 +162,8 @@ async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
         raise
 async def getStatusOfMonitors(conn:psycopg.Connection):
     async with conn.cursor() as cursor:
-        await cursor.execute("SELECT DISTINCT ON (monitors.id) "\
-            "monitors.name,monitors.url ,"\
+        await cursor.execute("SELECT DISTINCT ON(monitors.id) "\
+            "monitors.id, monitors.name,monitors.url ,"\
             "monitor_events.status, monitor_events.status_code, " \
             "monitor_events.response_time_ms, " \
             "monitor_events.checked_at "\
@@ -164,23 +181,24 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
 
         for row in rows:
             results.append({
-                "name":row[0],
-                "url":row[1],
-                "status":row[2],
-                "status_code":row[3],
-                "response_time_ms":row[4] if row[4] is None else row[4]/100,
-                "checked_at":row[5]
+                "id":row[0],
+                "name":row[1],
+                "url":row[2],
+                "status":row[3],
+                "status_code":row[4],
+                "response_time_ms":row[5] if row[5] is None else row[5]/100,
+                "checked_at":row[6]
                 })
 
         return results
 
-async def getMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
+async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
     async with conn.cursor() as cursor:
-        await cursor.execute("SELECT COUNT(*) as total_checks,"
+        await cursor.execute("SELECT COUNT(*) as total_checks, "
             "COUNT(*) FILTER (WHERE status='up') as successful_checks, " \
-            "SUM(response_time_ms) FILTER (WHERE status='up) as successful_latency_sum_ms "\
-            "FROM monitor_events"\
-            "WHERE monitor_id=%s"\
+            "SUM(response_time_ms) FILTER (WHERE status='up') as successful_latency_sum_ms "\
+            "FROM monitor_events "\
+            "WHERE monitor_id=%s "\
             "AND checked_at>=NOW()-INTERVAL '24 hours'",(monitor_id,))
 
         row=await cursor.fetchone()
@@ -193,7 +211,13 @@ async def getMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
 
     total_count=row[0]
     up_count=row[1]
-    successful_latency_sum_ms=row[2]/100
+    successful_latency_sum_ms=row[2]
+
+    if total_count==0 and up_count==0 and successful_latency_sum_ms is None:
+        return None
+
+    #scale down 
+    successful_latency_sum_ms/=100
 
     average_latency_ms=successful_latency_sum_ms/up_count
 

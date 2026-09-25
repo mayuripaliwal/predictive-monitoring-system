@@ -1,13 +1,11 @@
 from fastapi.testclient import TestClient
-from main import app
+from main import app, MonitorEvent
 import pytest
 import os
 import psycopg
 import sys,asyncio
-
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
+from worker import save_monitor_event
+from datetime import datetime, timezone
 @pytest.fixture(scope="session")
 def client():
     with TestClient(app) as test_client:
@@ -19,13 +17,26 @@ def reset_test_state():
 
     try:
         with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM monitors")
-
-            cursor.execute("DELETE FROM monitor_events")
+            cursor.execute("TRUNCATE TABLE monitor_events, monitors RESTART IDENTITY")
 
             conn.commit()
     finally:
         conn.close()
+
+#this function saves the monitor event in db
+def save_monitor_event(monitor_event:MonitorEvent):
+    conn=psycopg.connect(os.getenv("DATABASE_URL"))
+    with conn.cursor() as cursor:
+        cursor.execute("INSERT INTO monitor_events" \
+        " (monitor_id,status,status_code,response_time_ms,checked_at) " \
+        "  VALUES (%s,%s,%s,%s,%s)",
+        (monitor_event.monitor_id,
+            monitor_event.status,
+            monitor_event.status_code,
+            monitor_event.response_time_ms,
+            monitor_event.checked_at))
+
+        conn.commit()
 
 def test_home(client):
     response=client.get('/')
@@ -69,3 +80,73 @@ def test_get_all_monitors(client):
     assert "data" in response.json()
 
     assert response.json()["success"]==True
+
+def test_get_monitor_metrics(client):
+    #create a monitor
+    response=client.post('/monitors',json={
+        "name":"monitor A",
+        "url":"https://example.com"
+    })
+
+    assert response.status_code==200
+
+    #test metrics before inserting events
+    monitor_id=1
+
+    metrics_response=client.get(f'/monitors/{monitor_id}')
+    
+    assert metrics_response.status_code==200
+    
+    metrics=metrics_response.json()
+
+    assert "data" in metrics
+
+    metrics_data=metrics["data"]
+    
+    assert len(metrics_data)==0
+
+    #insert monitor events
+    #test metrics after inserting events
+    monitor_event=MonitorEvent(
+        monitor_id=1,
+        status='up',
+        status_code=200,
+        response_time_ms=20155,
+        checked_at=datetime.now(timezone.utc)
+    )
+    save_monitor_event(monitor_event)
+    monitor_event=MonitorEvent(
+        monitor_id=1,
+        status='up',
+        status_code=200,
+        response_time_ms=20145,
+        checked_at=datetime.now(timezone.utc)
+    )
+    save_monitor_event(monitor_event)
+    monitor_event=MonitorEvent(
+        monitor_id=1,
+        status='down',
+        status_code=500,
+        response_time_ms=300000,
+        checked_at=datetime.now(timezone.utc)
+    )
+    save_monitor_event(monitor_event)
+    
+    
+    metrics_response=client.get(f'/monitors/{monitor_id}')
+
+    assert metrics_response.status_code==200
+    
+    metrics=metrics_response.json()
+    
+    assert "data" in metrics
+
+    metrics_data=metrics["data"]
+
+    assert len(metrics_data)==3
+
+    assert metrics_data["uptime_percentage"]==(2/3)*100
+
+    assert metrics_data["average_latency_ms"]==201.5
+
+    assert metrics_data["error_rate"]==(1/3)*100

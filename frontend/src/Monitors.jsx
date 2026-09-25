@@ -1,5 +1,6 @@
 import {useEffect} from 'react';
 import {useState} from 'react';
+import {Link} from "react-router-dom";
 const BACKEND_URL=import.meta.env.VITE_BACKEND_URL;
 function MonitorsTable({monitors}) {
     return (
@@ -32,10 +33,13 @@ function MonitorsTable({monitors}) {
               </thead>
               <tbody className="bg-white">
                 {monitors.map((monitor) => (
-                  <tr key={monitor.url} className="even:bg-gray-50">
+                  
+                  <tr key={monitor.id} className="even:bg-gray-50">
+                    
                     <td className="text-center py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-3">
-                      {monitor.name}
+                      <Link to={`/monitors/${monitor.id}`}>{monitor.name}</Link>
                     </td>
+                    
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.url}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status==null?"Pending":monitor.status=="up"?"Up":"Down"}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status_code==null?"None":monitor.status_code}</td>
