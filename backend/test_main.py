@@ -143,7 +143,11 @@ def test_get_monitor_metrics(client):
 
     metrics_data=metrics["data"]
 
-    assert len(metrics_data)==3
+    assert len(metrics_data)==5
+
+    assert metrics_data["monitor_name"]=="monitor A"
+
+    assert metrics_data["monitor_url"]=="https://example.com/"
 
     assert metrics_data["uptime_percentage"]==(2/3)*100
 

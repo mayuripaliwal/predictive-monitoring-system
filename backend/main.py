@@ -132,7 +132,6 @@ async def getMonitors(conn=Depends(get_db)):
         "data":monitors
     }  
 
-#TODO: add test for this
 @app.get('/monitors/{monitor_id}')
 async def getMonitorMetrics(monitor_id:int,conn=Depends(get_db)):
     metrics=await fetchMonitorMetrics(monitor_id,conn)
@@ -194,12 +193,16 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
 
 async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
     async with conn.cursor() as cursor:
-        await cursor.execute("SELECT COUNT(*) as total_checks, "
+        await cursor.execute("SELECT monitors.name, monitors.url, " \
+            "COUNT(*) as total_checks, "
             "COUNT(*) FILTER (WHERE status='up') as successful_checks, " \
             "SUM(response_time_ms) FILTER (WHERE status='up') as successful_latency_sum_ms "\
-            "FROM monitor_events "\
+            "FROM monitor_events " \
+            "JOIN monitors " \
+            "ON monitors.id=monitor_events.monitor_id "\
             "WHERE monitor_id=%s "\
-            "AND checked_at>=NOW()-INTERVAL '24 hours'",(monitor_id,))
+            "AND checked_at>=NOW()-INTERVAL '24 hours' " \
+            "GROUP BY monitors.id, monitors.url, monitors.name",(monitor_id,))
 
         row=await cursor.fetchone()
 
@@ -209,9 +212,11 @@ async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
     if row is None:
         return None
 
-    total_count=row[0]
-    up_count=row[1]
-    successful_latency_sum_ms=row[2]
+    monitor_name=row[0]
+    monitor_url=row[1]
+    total_count=row[2]
+    up_count=row[3]
+    successful_latency_sum_ms=row[4]
 
     if total_count==0 and up_count==0 and successful_latency_sum_ms is None:
         return None
@@ -228,6 +233,8 @@ async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
     error_rate=((total_count-up_count)/total_count)*100
 
     return {
+        "monitor_name":monitor_name,
+        "monitor_url":monitor_url,
         "uptime_percentage":uptime_percentage,
         "average_latency_ms":average_latency_ms,
         "error_rate":error_rate
