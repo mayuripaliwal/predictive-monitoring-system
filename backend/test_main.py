@@ -1,11 +1,11 @@
 from fastapi.testclient import TestClient
-from main import app, MonitorEvent
+from main import app, MonitorEvent, RESPONSE_TIME_MS_SCALE
 import pytest
 import os
 import psycopg
 import sys,asyncio
 from worker import save_monitor_event
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 @pytest.fixture(scope="session")
 def client():
     with TestClient(app) as test_client:
@@ -93,7 +93,7 @@ def test_get_monitor_metrics(client):
     #test metrics before inserting events
     monitor_id=1
 
-    metrics_response=client.get(f'/monitors/{monitor_id}')
+    metrics_response=client.get(f'/monitors/{monitor_id}/metrics')
     
     assert metrics_response.status_code==200
     
@@ -133,7 +133,7 @@ def test_get_monitor_metrics(client):
     save_monitor_event(monitor_event)
     
     
-    metrics_response=client.get(f'/monitors/{monitor_id}')
+    metrics_response=client.get(f'/monitors/{monitor_id}/metrics')
 
     assert metrics_response.status_code==200
     
@@ -154,3 +154,56 @@ def test_get_monitor_metrics(client):
     assert metrics_data["average_latency_ms"]==201.5
 
     assert metrics_data["error_rate"]==(1/3)*100
+
+# this test checks if last 10 monitor events are fetched properly or not
+def test_get_monitor_events(client):
+    #create a monitor
+    response=client.post('/monitors',json={
+        "name":"monitor A",
+        "url":"https://example.com"
+    })
+
+    assert response.status_code==200
+
+    monitor_id=1
+    #test events before inserting events
+    
+    response=client.get(f"/monitors/{monitor_id}/events")
+
+    assert response.status_code==200
+
+    assert "data" in response.json()
+
+    assert len(response.json()["data"])==0
+
+    #insert monitor events
+    #test insertion of 11 events, then check only 10 should appear
+    curr_time=datetime.now(timezone.utc)
+
+    for i in range(11):
+        isEven=True if i%2==0 else False
+        monitor_event=MonitorEvent(
+            monitor_id=1,
+            status='up' if isEven else 'down',
+            status_code=200 if isEven else 503,
+            response_time_ms=(200+i)*RESPONSE_TIME_MS_SCALE,
+            checked_at=curr_time
+        )
+        save_monitor_event(monitor_event)
+        curr_time+=timedelta(minutes=5)
+
+    response=client.get(f"/monitors/{monitor_id}/events")
+
+    assert response.status_code==200
+
+    result=response.json()
+
+    assert "data" in result
+
+    events=result["data"]
+
+    assert len(events)==10
+
+#test to clean up db after all tests
+def test_db_clean_up():
+    pass

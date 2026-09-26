@@ -21,13 +21,13 @@ function MonitorsTable({monitors}) {
                     Status
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                    Status Code
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                    Response Time (ms)
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
                     Last Checked
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
+                    Latency (ms)
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
+                    Status Code
                   </th>
                 </tr>
               </thead>
@@ -42,10 +42,9 @@ function MonitorsTable({monitors}) {
                     
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.url}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status==null?"Pending":monitor.status=="up"?"Up":"Down"}</td>
-                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status_code==null?"None":monitor.status_code}</td>
-                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.response_time_ms==null?"None":monitor.response_time_ms}</td>
                     <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{formatDateTime(monitor.checked_at)}</td>
-                    
+                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.response_time_ms==null?"None":monitor.response_time_ms}</td>
+                    <td className="text-center px-3 py-4 text-sm whitespace-nowrap text-gray-500">{monitor.status_code==null?"None":monitor.status_code}</td>
                   </tr>
                 ))}
               </tbody>
@@ -57,7 +56,7 @@ function MonitorsTable({monitors}) {
   )
 }
 //this function converts the timestamp into a user -friendly format
-function formatDateTime(timestamp){
+export function formatDateTime(timestamp){
     //handle null timestamps (when monitor has not been checked yet)
     if (timestamp === null){
         return "None";

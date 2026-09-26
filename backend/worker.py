@@ -2,7 +2,7 @@ from arq import cron
 from arq.connections import RedisSettings
 import time
 import psycopg
-from main import MonitorEvent, REDIS_URL
+from main import MonitorEvent, REDIS_URL, RESPONSE_TIME_MS_SCALE
 from datetime import timezone,datetime
 import httpx
 import os
@@ -59,12 +59,12 @@ async def check_monitor(ctx,monitor) -> MonitorEvent:
         else:
             monitor_event.status="down"
 
-        monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*100
+        monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*RESPONSE_TIME_MS_SCALE
 
         return monitor_event
     
     except httpx.RequestError:
-        monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*100
+        monitor_event.response_time_ms=round((time.perf_counter()-start)*1000,2)*RESPONSE_TIME_MS_SCALE
 
         return monitor_event
 

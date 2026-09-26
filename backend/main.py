@@ -85,6 +85,8 @@ app.add_middleware(
     allow_headers=["Content-Type"]
 )
 
+RESPONSE_TIME_MS_SCALE=100
+
 # dependency to lease db connections safely
 async def get_db():
     async with pool.connection() as conn:
@@ -132,7 +134,7 @@ async def getMonitors(conn=Depends(get_db)):
         "data":monitors
     }  
 
-@app.get('/monitors/{monitor_id}')
+@app.get('/monitors/{monitor_id}/metrics')
 async def getMonitorMetrics(monitor_id:int,conn=Depends(get_db)):
     metrics=await fetchMonitorMetrics(monitor_id,conn)
 
@@ -148,6 +150,23 @@ async def getMonitorMetrics(monitor_id:int,conn=Depends(get_db)):
         "data":metrics
     }
 
+#this api returns the 10 most recent monitor events for a given monitor id
+@app.get('/monitors/{monitor_id}/events')
+async def getMonitorEvents(monitor_id:int,conn=Depends(get_db)):
+    events=await fetchMonitorEvents(monitor_id,conn)
+
+    if events is None:
+        return {
+            "success":True,
+            "message":"No events to display.",
+            "data":[]
+        }
+    
+    return {
+        "success":True,
+        "data":events
+    }
+    
 # this fn saves a monitor in db
 # if already exists then rollback, raise exception
 async def saveMonitor(monitor:Monitor,conn:psycopg.Connection):
@@ -185,7 +204,7 @@ async def getStatusOfMonitors(conn:psycopg.Connection):
                 "url":row[2],
                 "status":row[3],
                 "status_code":row[4],
-                "response_time_ms":row[5] if row[5] is None else row[5]/100,
+                "response_time_ms":row[5] if row[5] is None else row[5]/RESPONSE_TIME_MS_SCALE,
                 "checked_at":row[6]
                 })
 
@@ -218,13 +237,16 @@ async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
     up_count=row[3]
     successful_latency_sum_ms=row[4]
 
-    if total_count==0 and up_count==0 and successful_latency_sum_ms is None:
-        return None
+    if total_count==0:
+        return None    
 
-    #scale down 
-    successful_latency_sum_ms/=100
+    average_latency_ms=None
 
-    average_latency_ms=successful_latency_sum_ms/up_count
+    #scale down if exist
+    if successful_latency_sum_ms is not None:
+        successful_latency_sum_ms/=RESPONSE_TIME_MS_SCALE
+
+        average_latency_ms=successful_latency_sum_ms/up_count
 
     uptime=up_count/total_count
 
@@ -239,3 +261,32 @@ async def fetchMonitorMetrics(monitor_id:int,conn:psycopg.Connection):
         "average_latency_ms":average_latency_ms,
         "error_rate":error_rate
     }
+
+async def fetchMonitorEvents(monitor_id:int,conn:psycopg.Connection):
+    async with conn.cursor() as cursor:
+        await cursor.execute("SELECT monitor_events.id, monitor_events.checked_at, monitor_events.status, " \
+        "monitor_events.response_time_ms, monitor_events.status_code " \
+        "FROM monitor_events " \
+        "JOIN monitors " \
+        "ON monitors.id=monitor_events.monitor_id " \
+        "WHERE monitor_events.monitor_id=%s " \
+        "ORDER BY monitor_events.checked_at DESC " \
+        "LIMIT 10",(monitor_id,))
+
+        rows=await cursor.fetchall()
+
+    if not rows:
+        return None
+
+    results=[]
+    
+    for row in rows:
+        results.append({
+            "id":row[0],
+            "checked_at":row[1],
+            "status":row[2],
+            "response_time_ms":row[3]/RESPONSE_TIME_MS_SCALE,
+            "status_code":row[4]
+        })
+
+    return results
